@@ -7,25 +7,58 @@ jobs:
   gen_flist:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout CVA6
+      - name: Checkout CVA6 (with submodules)
         uses: actions/checkout@v4
         with:
           repository: openhwgroup/cva6
           submodules: recursive
+          fetch-depth: 1
 
-      - name: Build and install bender
+      - name: Install bender (download prebuilt)
+        shell: bash
         run: |
+          set -euxo pipefail
           sudo apt-get update
-          sudo apt-get install -y make git
-          git clone https://github.com/pulp-platform/bender.git
-          cd bender
-          make
-          sudo install bender /usr/local/bin/bender
+          sudo apt-get install -y curl ca-certificates tar
 
-      - name: Generate flist
+          # Query latest bender release asset for linux amd64
+          api="https://api.github.com/repos/pulp-platform/bender/releases/latest"
+          url=$(curl -fsSL "$api" | \
+                grep -Eo '"browser_download_url":\s*"[^"]+"' | \
+                cut -d'"' -f4 | \
+                grep -Ei 'linux|x86_64|amd64' | \
+                grep -Ei '\.tar\.gz$|\.tgz$' | \
+                head -n 1)
+
+          echo "Download: $url"
+          curl -fL "$url" -o bender.tgz
+          tar -xzf bender.tgz
+
+          # find the bender executable and install it
+          bin=$(find . -maxdepth 3 -type f -name bender -o -name bender.exe | head -n 1 || true)
+          if [ -z "$bin" ]; then
+            echo "Cannot find bender binary in archive"
+            find . -maxdepth 3 -type f
+            exit 1
+          fi
+          sudo install -m 0755 "$bin" /usr/local/bin/bender
+          bender --version
+
+      - name: Show bender targets
+        run: bender targets
+
+      - name: Generate flist (try common targets)
+        shell: bash
         run: |
-          bender script flist -t rtl > cva6_rtl.f
-          head -n 30 cva6_rtl.f
+          set -euxo pipefail
+          for t in rtl default cva6; do
+            if bender script flist -t "$t" > cva6_rtl.f 2>/dev/null; then
+              echo "Generated flist with target: $t"
+              break
+            fi
+          done
+          test -s cva6_rtl.f
+          head -n 40 cva6_rtl.f
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
