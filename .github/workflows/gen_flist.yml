@@ -21,23 +21,30 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          # Install bender from the git repo (picks current main)
           cargo install --git https://github.com/pulp-platform/bender.git bender
           bender --version
+          bender --help || true
+          bender script --help || true
 
-      - name: Show bender targets
-        run: bender targets
-
-      - name: Generate flist (try common targets)
+      - name: Generate flist
         shell: bash
         run: |
           set -euxo pipefail
-          for t in rtl default cva6; do
-            if bender script flist -t "$t" > cva6_rtl.f 2>/dev/null; then
-              echo "Generated flist with target: $t"
-              break
-            fi
-          done
+
+          # Most bender versions support: bender script flist ...
+          # Try without target first (some projects default correctly)
+          if bender script flist > cva6_rtl.f 2>/dev/null; then
+            echo "Generated flist with default target"
+          else
+            # Try common target names
+            for t in rtl default cva6; do
+              if bender script flist -t "$t" > cva6_rtl.f 2>/dev/null; then
+                echo "Generated flist with target: $t"
+                break
+              fi
+            done
+          fi
+
           test -s cva6_rtl.f
           head -n 40 cva6_rtl.f
 
