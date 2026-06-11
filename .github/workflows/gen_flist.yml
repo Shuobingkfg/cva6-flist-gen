@@ -14,34 +14,15 @@ jobs:
           submodules: recursive
           fetch-depth: 1
 
-      - name: Install bender (download prebuilt)
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install bender via cargo (from git)
         shell: bash
         run: |
           set -euxo pipefail
-          sudo apt-get update
-          sudo apt-get install -y curl ca-certificates tar
-
-          # Query latest bender release asset for linux amd64
-          api="https://api.github.com/repos/pulp-platform/bender/releases/latest"
-          url=$(curl -fsSL "$api" | \
-                grep -Eo '"browser_download_url":\s*"[^"]+"' | \
-                cut -d'"' -f4 | \
-                grep -Ei 'linux|x86_64|amd64' | \
-                grep -Ei '\.tar\.gz$|\.tgz$' | \
-                head -n 1)
-
-          echo "Download: $url"
-          curl -fL "$url" -o bender.tgz
-          tar -xzf bender.tgz
-
-          # find the bender executable and install it
-          bin=$(find . -maxdepth 3 -type f -name bender -o -name bender.exe | head -n 1 || true)
-          if [ -z "$bin" ]; then
-            echo "Cannot find bender binary in archive"
-            find . -maxdepth 3 -type f
-            exit 1
-          fi
-          sudo install -m 0755 "$bin" /usr/local/bin/bender
+          # Install bender from the git repo (picks current main)
+          cargo install --git https://github.com/pulp-platform/bender.git bender
           bender --version
 
       - name: Show bender targets
