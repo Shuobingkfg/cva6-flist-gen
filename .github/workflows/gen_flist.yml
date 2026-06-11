@@ -1,0 +1,34 @@
+name: gen-cva6-filelist
+
+on:
+  workflow_dispatch:
+
+jobs:
+  gen_flist:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout CVA6
+        uses: actions/checkout@v4
+        with:
+          repository: openhwgroup/cva6
+          submodules: recursive
+
+      - name: Build and install bender
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y make git
+          git clone https://github.com/pulp-platform/bender.git
+          cd bender
+          make
+          sudo install bender /usr/local/bin/bender
+
+      - name: Generate flist
+        run: |
+          bender script flist -t rtl > cva6_rtl.f
+          head -n 30 cva6_rtl.f
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cva6_rtl_f
+          path: cva6_rtl.f
